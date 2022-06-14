@@ -9,7 +9,7 @@
 test() ->
     {ok, _} = application:ensure_all_started(brod),
     io:format("BROD1 ~n", []),
-    KafkaBootstrapEndpoints = [{"localhost", 9092}],
+    KafkaBootstrapEndpoints = [{"127.0.0.1", 29092}],
     Topic = ?TOPIC,
     Partition = 0,
     ok = brod:start_client(KafkaBootstrapEndpoints, client1),
