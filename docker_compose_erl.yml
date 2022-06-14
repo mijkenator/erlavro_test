@@ -1,0 +1,10 @@
+version: '3'
+services:
+  erlang:
+#    image: erlang:24
+    image: rtb-gateway-dependency:OTP-24.0.0.0-fix-regions
+    network_mode: "host"
+    container_name: erlang
+    volumes:
+        - $PWD:/app
+    command: bash -c "while true; do echo hello; sleep 2; done"
