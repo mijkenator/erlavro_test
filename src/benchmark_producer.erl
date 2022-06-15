@@ -17,7 +17,8 @@ benchmark(Driver, Concurrency, BytesPerMsg, MsgCount) ->
     init(Driver),
     Self = self(),
 
-    Message = <<0:BytesPerMsg/little-signed-integer-unit:8>>,
+    %Message = <<0:BytesPerMsg/little-signed-integer-unit:8>>,
+    Message = base64:encode(crypto:strong_rand_bytes(BytesPerMsg)),
 
     MsgsPerProc = MsgCount div Concurrency,
 
@@ -69,15 +70,23 @@ init(erlkaf) ->
     %ok = erlkaf:create_producer(client_producer, ProducerConfig),
     %ok = erlkaf:create_topic(client_producer, ?TOPIC, [{request_required_acks, 1}]);
 init(brod) ->
-    brod:start().
+    brod:start();
+init(flare) ->
+    flare_app:start(),
+    flare_topic:start(?TOPIC, [{compression, snappy}]).
 
 produce(erlkaf, Key, Message) ->
     ok = erlkaf:produce(client_producer, ?TOPIC, Key, Message);
-produce(brod, Key, Message) ->
-    PartitionFun = fun(_Topic, PartitionsCount, _Key, _Value) ->
-        {ok, erlang:crc32(term_to_binary(Key)) rem PartitionsCount}
-    end,
-    ok = brod:produce_sync(kafka_client, ?TOPIC, PartitionFun, Key, Message);
+produce(brod, _Key, _Message) ->
+%    PartitionFun = fun(_Topic, PartitionsCount, _Key, _Value) ->
+%        {ok, erlang:crc32(term_to_binary(Key)) rem PartitionsCount}
+%    end,
+%    ok = brod:produce_sync(kafka_client, ?TOPIC, PartitionFun, Key, Message);
+    {T1, K1, V1} = make_unique_tkv(),
+    ok = brod:produce_sync(kafka_client, ?TOPIC, 1, <<>>, [{T1, K1, V1}]);
+    
+produce(flare, Key, Message) ->
+    flare:produce(?TOPIC, flare_utils:timestamp(), Key, Message, [], 500);
 produce(_, _Key, _Message) ->
     ok.
 
@@ -91,4 +100,15 @@ format_size(Size) ->
 format_size(S, [_|[_|_] = L]) when S >= 1024 -> format_size(S/1024, L);
 format_size(S, [M|_]) ->
     io_lib:format("~.2f ~s", [float(S), M]).
+
+make_unique_kv() ->
+  { iolist_to_binary(["key-", make_ts_str()])
+  , iolist_to_binary(["val-", make_ts_str()])
+  }.
+
+make_unique_tkv() ->
+  {K, V} = make_unique_kv(),
+  {brod_utils:epoch_ms(), K, V}.
+
+make_ts_str() -> brod_utils:os_time_utc_str().
 
