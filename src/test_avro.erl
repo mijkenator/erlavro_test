@@ -3,7 +3,7 @@
 
 -export([
     avro/0,
-    avro/1,
+    avro/2,
     send_avro/4,
     register_schema/1
 ]).
@@ -16,11 +16,11 @@ avro() ->
     Rec = [{"email", "mkh@nkh.com"},{"firstName","Karabas"},{"lastName", "Barabas"}],
     iolist_to_binary(Encoder(Rec)).
 
-avro(Rec) ->
+avro(Subject, Rec) ->
     {ok, SchemaJSON} = file:read_file("priv/create-user-request.avsc"),
     Encoder = avro:make_simple_encoder(SchemaJSON, []),
     AvroBinary = iolist_to_binary(Encoder(Rec)),
-    {ok, SchemaId} = register_schema(SchemaJSON),
+    {ok, SchemaId} = register_schema(Subject, SchemaJSON),
     tag_data(SchemaId, AvroBinary).
 
 send_avro(erlkaf, Topic, Key, Rec) ->
@@ -28,11 +28,11 @@ send_avro(erlkaf, Topic, Key, Rec) ->
     ProducerConfig = [{bootstrap_servers, <<"127.0.0.1:29092">>}],
     erlkaf:create_producer(client_producer_avro, ProducerConfig),
     erlkaf:create_topic(client_producer_avro, Topic, [{request_required_acks, 1}]),
-    erlkaf:produce(client_producer_avro, Topic, Key, avro(Rec));
+    erlkaf:produce(client_producer_avro, Topic, Key, avro("test_schema", Rec));
 send_avro(flare, Topic, _Key, Rec) ->
     flare_app:start(),
     flare_topic:start(Topic, [{compression, snappy}]),
-    flare:async_produce(Topic, flare_utils:timestamp(), undefined, avro(Rec), [], undefined ).
+    flare:async_produce(Topic, flare_utils:timestamp(), undefined, avro("test_schema", Rec), [], undefined ).
 
 tag_data(SchemaId, AvroBinary) ->
   iolist_to_binary([<<?VSN:8, SchemaId:32/unsigned-integer>>, AvroBinary]).
@@ -43,6 +43,7 @@ tag_data(SchemaId, AvroBinary) ->
 
 
 register_schema(SchemaJSON) -> do_register_schema("test_schema", SchemaJSON).
+register_schema(Subject, SchemaJSON) -> do_register_schema(Subject, SchemaJSON).
    
 do_register_schema(Subject, SchemaJSON) ->
   {SchemaRegistryURL, SchemaRegistryHeaders} = {"http://localhost:8081", []},
