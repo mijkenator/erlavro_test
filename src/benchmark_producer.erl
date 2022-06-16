@@ -69,13 +69,20 @@ init(erlkaf) ->
     %],
     %ok = erlkaf:create_producer(client_producer, ProducerConfig),
     %ok = erlkaf:create_topic(client_producer, ?TOPIC, [{request_required_acks, 1}]);
+init(erlkafa) ->
+    erlkaf:start();
 init(brod) ->
     brod:start();
 init(flare) ->
     flare_app:start(),
+    flare_topic:start(?TOPIC, [{compression, snappy}]);
+init(flarea) ->
+    flare_app:start(),
     flare_topic:start(?TOPIC, [{compression, snappy}]).
 
 produce(erlkaf, Key, Message) ->
+    ok = erlkaf:produce(client_producer, ?TOPIC, Key, Message);
+produce(erlkafa, Key, Message) ->
     ok = erlkaf:produce(client_producer, ?TOPIC, Key, Message);
 produce(brod, _Key, _Message) ->
 %    PartitionFun = fun(_Topic, PartitionsCount, _Key, _Value) ->
@@ -87,6 +94,8 @@ produce(brod, _Key, _Message) ->
     
 produce(flare, Key, Message) ->
     flare:produce(?TOPIC, flare_utils:timestamp(), Key, Message, [], 500);
+produce(flarea, _Key, Message) ->
+    flare:async_produce(?TOPIC, flare_utils:timestamp(), undefined, Message, [], undefined );
 produce(_, _Key, _Message) ->
     ok.
 
